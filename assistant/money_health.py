@@ -1,59 +1,50 @@
-"""Onboarding and Money Health Score computation for personal finance mentor."""
+def calculate_money_health_score(user_data: Dict[str, any]) -> Dict[str, any]:
+    """
+    Calculate Money Health Score and category breakdown from user_data.
+    Returns a dict with totalScore and categoryScores.
+    """
+    answers = {}
 
-from typing import Dict
-import json
+    # Emergency preparedness: months of expenses saved
+    try:
+        months = user_data["savings"] / user_data["expenses"] if user_data["expenses"] > 0 else 0
+    except Exception:
+        months = 0
+    answers["emergency_preparedness"] = str(int(months))
 
-# Dimensions for Money Health Score
-dimensions = [
-    "emergency_preparedness",
-    "insurance_coverage",
-    "investment_diversification",
-    "debt_health",
-    "tax_efficiency",
-    "retirement_readiness",
-]
+    # Insurance coverage: yes if both health and term insurance
+    answers["insurance_coverage"] = "yes" if user_data.get("health_insurance") or user_data.get("term_insurance") else "no"
 
-def onboarding_questions() -> Dict[str, str]:
-    """Returns onboarding questions for each dimension."""
-    return {
-        "emergency_preparedness": "How many months of living expenses do you have saved for emergencies? (0-12+)",
-        "insurance_coverage": "Do you have health and life insurance? (yes/no)",
-        "investment_diversification": "Do you invest in more than one asset class (stocks, bonds, gold, etc.)? (yes/no)",
-        "debt_health": "Is your monthly debt payment less than 30% of your income? (yes/no)",
-        "tax_efficiency": "Do you use tax-saving instruments (ELSS, PPF, NPS, etc.)? (yes/no)",
-        "retirement_readiness": "Are you regularly investing for retirement? (yes/no)",
+    # Investment diversification: yes if monthly investment > 0
+    answers["investment_diversification"] = "yes" if user_data.get("investment", 0) > 0 else "no"
+
+    # Debt health: EMI < 30% of income
+    emi_ratio = (user_data.get("emi", 0) / user_data.get("income", 1)) if user_data.get("income", 0) > 0 else 1
+    answers["debt_health"] = "yes" if emi_ratio < 0.3 else "no"
+
+    # Tax efficiency: yes if tax_status is not "none"
+    answers["tax_efficiency"] = "yes" if user_data.get("tax_status", "none") != "none" else "no"
+
+    # Retirement readiness: yes if monthly investment > 0 (simplified)
+    answers["retirement_readiness"] = "yes" if user_data.get("investment", 0) > 0 else "no"
+
+    # Compute scores using your existing function
+    scores = compute_money_health_score(answers)
+
+    # Map to category scores and weights (as per your Streamlit UI)
+    categoryScores = {
+        "savings": min(int(months * 2), 20),  # up to 10+ months = 20/20
+        "emergency": int(scores["emergency_preparedness"] * 20),
+        "investment": int(scores["investment_diversification"] * 20),
+        "debt": int(scores["debt_health"] * 15),
+        "insurance": int(scores["insurance_coverage"] * 15),
+        "tax": int(scores["tax_efficiency"] * 10),
     }
+    totalScore = sum(categoryScores.values())
 
-def compute_money_health_score(answers: Dict[str, str]) -> Dict[str, float]:
-    """Computes a score (0-1) for each dimension and an overall score."""
-    scores = {}
-    # Emergency preparedness: 0 if <1 month, 0.5 if 1-5, 1 if 6+
-    try:
-        months = int(answers.get("emergency_preparedness", "0"))
-        if months >= 6:
-            scores["emergency_preparedness"] = 1.0
-        elif months >= 1:
-            scores["emergency_preparedness"] = 0.5
-        else:
-            scores["emergency_preparedness"] = 0.0
-    except Exception:
-        scores["emergency_preparedness"] = 0.0
-    # Yes/No for other dimensions
-    for dim in dimensions[1:]:
-        val = answers.get(dim, "no").strip().lower()
-        scores[dim] = 1.0 if val == "yes" else 0.0
-    # Overall score: average
-    scores["overall"] = sum(scores.values()) / len(dimensions)
-    return scores
-
-def save_onboarding(answers: Dict[str, str], scores: Dict[str, float], path: str = "data/money_health_score.json"):
-    """Save onboarding answers and scores to a file."""
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump({"answers": answers, "scores": scores}, f, indent=2)
-
-def load_onboarding(path: str = "data/money_health_score.json") -> Dict:
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return {"answers": {}, "scores": {}}
+    return {
+        "totalScore": totalScore,
+        "categoryScores": categoryScores,
+        "rawScores": scores,
+        "answers": answers,
+    }
