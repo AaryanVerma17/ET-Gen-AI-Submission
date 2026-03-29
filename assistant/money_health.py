@@ -1,50 +1,104 @@
+from typing import Dict
+
 def calculate_money_health_score(user_data: Dict[str, any]) -> Dict[str, any]:
-    """
-    Calculate Money Health Score and category breakdown from user_data.
-    Returns a dict with totalScore and categoryScores.
-    """
-    answers = {}
 
-    # Emergency preparedness: months of expenses saved
-    try:
-        months = user_data["savings"] / user_data["expenses"] if user_data["expenses"] > 0 else 0
-    except Exception:
-        months = 0
-    answers["emergency_preparedness"] = str(int(months))
+    income = user_data.get("income", 0)
+    expenses = user_data.get("expenses", 0)
+    savings = user_data.get("savings", 0)
+    investment = user_data.get("investment", 0)
+    emi = user_data.get("emi", 0)
+    insurance = user_data.get("insurance", "None")
+    tax_utilization = user_data.get("tax_utilization", "None")
 
-    # Insurance coverage: yes if both health and term insurance
-    answers["insurance_coverage"] = "yes" if user_data.get("health_insurance") or user_data.get("term_insurance") else "no"
+    # ===============================
+    # 1. Savings Score (0–20)
+    # ===============================
+    savings_rate = (income - expenses) / income if income > 0 else 0
 
-    # Investment diversification: yes if monthly investment > 0
-    answers["investment_diversification"] = "yes" if user_data.get("investment", 0) > 0 else "no"
+    if savings_rate >= 0.4:
+        savings_score = 20
+    elif savings_rate >= 0.25:
+        savings_score = 15
+    elif savings_rate >= 0.1:
+        savings_score = 10
+    else:
+        savings_score = 5
 
-    # Debt health: EMI < 30% of income
-    emi_ratio = (user_data.get("emi", 0) / user_data.get("income", 1)) if user_data.get("income", 0) > 0 else 1
-    answers["debt_health"] = "yes" if emi_ratio < 0.3 else "no"
+    # ===============================
+    # 2. Emergency Score (0–20)
+    # ===============================
+    months = savings / expenses if expenses > 0 else 0
 
-    # Tax efficiency: yes if tax_status is not "none"
-    answers["tax_efficiency"] = "yes" if user_data.get("tax_status", "none") != "none" else "no"
+    if months >= 6:
+        emergency_score = 20
+    elif months >= 3:
+        emergency_score = 15
+    elif months >= 1:
+        emergency_score = 10
+    else:
+        emergency_score = 5
 
-    # Retirement readiness: yes if monthly investment > 0 (simplified)
-    answers["retirement_readiness"] = "yes" if user_data.get("investment", 0) > 0 else "no"
+    # ===============================
+    # 3. Investment Score (0–20)
+    # ===============================
+    invest_ratio = investment / income if income > 0 else 0
 
-    # Compute scores using your existing function
-    scores = compute_money_health_score(answers)
+    if invest_ratio >= 0.3:
+        investment_score = 20
+    elif invest_ratio >= 0.15:
+        investment_score = 15
+    elif invest_ratio >= 0.05:
+        investment_score = 10
+    else:
+        investment_score = 5
 
-    # Map to category scores and weights (as per your Streamlit UI)
+    # ===============================
+    # 4. Debt Score (0–15)
+    # ===============================
+    emi_ratio = emi / income if income > 0 else 1
+
+    if emi_ratio < 0.2:
+        debt_score = 15
+    elif emi_ratio < 0.4:
+        debt_score = 10
+    else:
+        debt_score = 5
+
+    # ===============================
+    # 5. Insurance Score (0–15)
+    # ===============================
+    if insurance == "Health + Term":
+        insurance_score = 15
+    elif insurance in ["Health", "Term"]:
+        insurance_score = 10
+    else:
+        insurance_score = 5
+
+    # ===============================
+    # 6. Tax Score (0–10)
+    # ===============================
+    if tax_utilization == "Full":
+        tax_score = 10
+    elif tax_utilization == "Partial":
+        tax_score = 7
+    else:
+        tax_score = 3
+
+    # ===============================
+    # FINAL OUTPUT
+    # ===============================
     categoryScores = {
-        "savings": min(int(months * 2), 20),  # up to 10+ months = 20/20
-        "emergency": int(scores["emergency_preparedness"] * 20),
-        "investment": int(scores["investment_diversification"] * 20),
-        "debt": int(scores["debt_health"] * 15),
-        "insurance": int(scores["insurance_coverage"] * 15),
-        "tax": int(scores["tax_efficiency"] * 10),
+        "savings": savings_score,
+        "emergency": emergency_score,
+        "investment": investment_score,
+        "debt": debt_score,
+        "insurance": insurance_score,
+        "tax": tax_score,
     }
+
     totalScore = sum(categoryScores.values())
 
     return {
         "totalScore": totalScore,
-        "categoryScores": categoryScores,
-        "rawScores": scores,
-        "answers": answers,
+        "categoryScores": categoryScores
     }
